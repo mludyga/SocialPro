@@ -49,8 +49,7 @@ st.header("Krok 2: Wybierz tryb pracy")
 auto_tab, manual_tab = st.tabs(["🚀 Tryb Automatyczny", "✍️ Tryb Ręczny"])
 
 
-# --- Logika dla Trybu Automatycznego ---
-# Cała nowa sekcja dla Trybu Automatycznego
+# OSTATECZNA WERSJA - cała sekcja dla Trybu Automatycznego
 with auto_tab:
     st.info("W tym trybie AI wybierze najlepszy artykuł, napisze do niego posta, a Ty go tylko zatwierdzisz.")
 
@@ -72,28 +71,40 @@ with auto_tab:
             with st.spinner("Krok 3/5: Pobieranie pełnej treści artykułu..."):
                 full_content = get_full_article_content(site_key, chosen_article['id'])
 
-            # NOWY KROK - POBIERANIE OBRAZKA
-            with st.spinner("Krok 4/5: Pobieranie obrazka wyróżniającego..."):
+            with st.spinner("Krok 4/5: Pobieranie i weryfikacja obrazka wyróżniającego..."):
                 image_url = chosen_article.get("featured_image_url")
                 if image_url:
                     try:
-                        image_response = requests.get(image_url)
-                        st.session_state.featured_image_bytes = image_response.content
+                        # --- OSTATECZNA POPRAWKA: Dodajemy nagłówek User-Agent ---
+                        headers = {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
+                        image_response = requests.get(image_url, headers=headers, timeout=15)
+                        # ---------------------------------------------------------
+
+                        if image_response.status_code == 200:
+                            content_type = image_response.headers.get('content-type', '')
+                            if 'image' in content_type:
+                                st.session_state.featured_image_bytes = image_response.content
+                            else:
+                                st.warning(f"Link prowadzi do treści, która nie jest obrazem ({content_type}). Pomijam pobieranie.")
+                        else:
+                            st.warning(f"Nie udało się pobrać obrazka. Serwer odpowiedział kodem: {image_response.status_code}")
                     except Exception as e:
-                        st.warning(f"Nie udało się pobrać obrazka: {e}")
+                        st.warning(f"Wystąpił błąd podczas pobierania obrazka: {e}")
                 else:
                     st.info("Wybrany artykuł nie ma obrazka wyróżniającego.")
 
             with st.spinner("Krok 5/5: AI pisze angażującego posta na Facebooka..."):
                 generated_post = create_facebook_post_from_article(chosen_article['title'], full_content, chosen_article['link'])
                 st.session_state.generated_post = generated_post
+                st.rerun() # Odświeżamy, aby pokazać wyniki
 
     # Jeżeli post został wygenerowany, wyświetlamy go w edytowalnym polu
     if st.session_state.generated_post:
         st.subheader("Wygenerowany post (możesz go edytować):")
         edited_post = st.text_area("Treść posta:", value=st.session_state.generated_post, height=250)
         
-        # Wyświetlamy pobrany obrazek, jeśli istnieje
         if st.session_state.featured_image_bytes:
             st.subheader("Sugerowane zdjęcie (możesz je zmienić poniżej):")
             st.image(st.session_state.featured_image_bytes)
@@ -102,9 +113,9 @@ with auto_tab:
 
         if st.button("✅ Opublikuj na Facebooku"):
             image_to_publish = None
-            if uploaded_image: # Użytkownik wgrał nowy obrazek - ma on priorytet
+            if uploaded_image:
                 image_to_publish = uploaded_image.getvalue()
-            elif st.session_state.featured_image_bytes: # Jeśli nie, użyj obrazka pobranego z WP
+            elif st.session_state.featured_image_bytes:
                 image_to_publish = st.session_state.featured_image_bytes
 
             with st.spinner("Publikowanie..."):
@@ -140,3 +151,4 @@ with manual_tab:
                     post_id = result.get('id', 'Brak ID')
                     st.success(f"Post został opublikowany! ID posta: {post_id}")
                     st.balloons()
+
