@@ -1,14 +1,13 @@
 # social_config.py
-# Konfiguracja dla aplikacji do publikowania postów w social mediach.
-# UWAGA: Ta wersja zawiera klucze API na stałe w kodzie i jest przeznaczona TYLKO DO TESTÓW.
-# W wersji produkcyjnej, klucze powinny być wczytywane ze zmiennych środowiskowych (os.getenv).
+# OSTATECZNA WERSJA - W PEŁNI BEZPIECZNA
+# Ten plik wczytuje WSZYSTKIE wrażliwe dane z sekretów Streamlit / zmiennych środowiskowych.
 
 import os
 
-# Wspólne klucze API, które mogą być potrzebne
+# Wspólne klucze API wczytywane z sekretów
 COMMON_KEYS = {
-    "OPENAI_API_KEY": "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",
-    "PERPLEXITY_API_KEY": "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"
+    "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+    "PERPLEXITY_API_KEY": os.getenv("PERPLEXITY_API_KEY"),
 }
 
 # Konfiguracja poszczególnych portali i powiązanych z nimi stron na Facebooku
@@ -21,8 +20,7 @@ SITES = {
         "auth_method": "basic",
         "facebook_page": {
             "page_id": "652774754577577",
-            # ZAKTUALIZOWANY TOKEN
-            "page_access_token": "EAASnnb5An6ABPAtwLEPqmHsxZA2ggvR7u9W752oKsUnvNtkKOqbirRbToH1KGus8s0a1yBnuHCtvWBQsX8UJy6WqYm71MTmDqUkEfT9qtPSeNzyT04ve9NyAqRuwlCszqq5aVZA77wS9uq2idKwVZB1VhkpdYwUVqk3cFwFzs9QzE4nuKxYnaVMEKs5i7WFJJlMZAQ4j5CZA0tK0NXn6gbVlp6s3ZAs5SBTSJWQhktMydi2IWwkr78o6ZArRUYZD"
+            "page_access_token": os.getenv("FB_AUTOZAKUP_TOKEN")
         }
     },
     "krakowskiryneknieruchomosci": {
@@ -31,7 +29,7 @@ SITES = {
         "wp_username": os.getenv("KRN_USER"),
         "wp_password": os.getenv("KRN_PASS"),
         "auth_method": "basic",
-        "facebook_page": None # Brak dopasowania na liście, do uzupełnienia
+        "facebook_page": None
     },
     "radiopin": {
         "friendly_name": "RadioPIN.pl",
@@ -40,8 +38,7 @@ SITES = {
         "auth_method": "bearer",
         "facebook_page": {
             "page_id": "657887917402967",
-            # ZAKTUALIZOWANY TOKEN
-            "page_access_token": "EAASnnb5An6ABPLXwAVE36Du1726vwpPjoDRSjATWjsaRhZBHshTlOXtDShGSAdxJLvpqeFh2w2ktXLZC4GQddbNYjhf7rQhnPCqEkg8aI4mwvYamFCsQZCagY6cHScvmw1nzQa8VcZAZCELCVxxf3Y62tlLAlWhadjc27hSzdLxQKgqYiqxuZCsWe1hZAEnD75NzgxdNRA4Q2xXfkWGOZAevcZBSKpKMKZCve1yLUPSwythxtrhhw9v5ZCZALTgXZAjoZD"
+            "page_access_token": os.getenv("FB_RADIOPIN_TOKEN")
         }
     },
     "echopolski": {
@@ -50,7 +47,7 @@ SITES = {
         "wp_username": os.getenv("ECHOPOLSKI_USER"),
         "wp_password": os.getenv("ECHOPOLSKI_PASS"),
         "auth_method": "basic",
-        "facebook_page": None # Brak dopasowania na liście, do uzupełnienia
+        "facebook_page": None
     },
     "infodlapolaka": {
         "friendly_name": "InfoDlaPolaka.pl",
@@ -60,8 +57,7 @@ SITES = {
         "auth_method": "basic",
         "facebook_page": {
             "page_id": "113621453424309",
-            # ZAKTUALIZOWANY TOKEN
-            "page_access_token": "EAASnnb5An6ABPLNJ0lVinqtoDXU0ZA907Kx9Vw2FdcBABaaiIBXo0EL6DWQv6dUOhbC9YBbb6LcZCACtjURcH0PE0oq8ZALTpr9hbm3b5hW4xgQB3r4uEZCLDld4JHTZBsMr9pPKgUba3OWyLxVzRZAHFVHPAZB4MEkj8b61DlDuDCEwEZCzbFZAZCNX61DCs9ZBkuIMFefY4MHzq7gUFZC8TwncxZAzvXtAfziJGcimIOlPFA68iLrfa5ltS3sfsIQZDZD"
+            "page_access_token": os.getenv("FB_INFODLAPOLAKA_TOKEN")
         }
     },
     "tylkoslask": {
@@ -72,8 +68,7 @@ SITES = {
         "auth_method": "basic",
         "facebook_page": {
             "page_id": "105250655039704",
-            # ZAKTUALIZOWANY TOKEN
-            "page_access_token": "EAASnnb5An6ABPJd0pHvHmJj51jDU28koz2x5k3ZBZApcqLNQhE7yUB5jX8VZA6QdhwMVJN9IcyfSC8srAx0Tt8fqnP2xBq8vX2NVClZBu2630sd607trZAIxIshEGqRbaBoyurIZCEXzbmwfMZCq12KZB4RaZBHLZB9OwFOgORfZCmQVaC92b67bDcEhxXejL5ZBKrqZCJ1k3NPIgdhmMVW3Om4G02XqlP8MJXIi4yymWN7VvyATyKXpGYnZC8D2jPaAZDZD"
+            "page_access_token": os.getenv("FB_TYLKOSLASK_TOKEN")
         }
     },
     "superkredyty": {
@@ -84,8 +79,7 @@ SITES = {
         "auth_method": "basic",
         "facebook_page": {
             "page_id": "343411575533119",
-            # ZAKTUALIZOWANY TOKEN
-            "page_access_token": "EAASnnb5An6ABPBOn8rjB7lzUPDHaFYtgZAcPzApvIsk2cSwDkz5jAnjvwZCd0kMJnnUcNJ63dLibbHuWJtWAOs1hmBpjWHTiA636kpy55L5lVcCyMbJeQ3UZAMZCHjQHUxNOJNFxG74WPDum6Mgd7WXi9jHZCQoBkgkvf4LmPN0eZCWh0IQ31yaKxiZCWlmBPtIKAF0DFJ8SJgQIv7Pi6nPFglzZBZBd4RbfYp8HblcLYCvYJTxZAT3TNEjJKOLqIZD"
+            "page_access_token": os.getenv("FB_SUPERKREDYTY_TOKEN")
         }
     }
 }
