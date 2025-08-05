@@ -23,6 +23,8 @@ if 'generated_post' not in st.session_state:
     st.session_state.generated_post = ""
 if 'featured_image_bytes' not in st.session_state:
     st.session_state.featured_image_bytes = None
+if 'featured_image_url' not in st.session_state:  # <-- DODAJ TĘ LINIĘ
+    st.session_state.featured_image_url = None    # <-- DODAJ TĘ LINIĘ
 
 # --- KROK 1: Wybór portalu ---
 st.header("Krok 1: Wybierz portal źródłowy")
@@ -57,6 +59,7 @@ with auto_tab:
         # Resetujemy poprzednie dane
         st.session_state.generated_post = ""
         st.session_state.featured_image_bytes = None
+        st.session_state.featured_image_url = None # <-- DODAJ TĘ LINIĘ
 
         with st.spinner("Krok 1/5: Pobieranie najnowszych artykułów..."):
             articles = get_latest_wp_posts(site_key, count=10)
@@ -74,14 +77,13 @@ with auto_tab:
             with st.spinner("Krok 4/5: Pobieranie i weryfikacja obrazka wyróżniającego..."):
                 image_url = chosen_article.get("featured_image_url")
                 if image_url:
+                    st.session_state.featured_image_url = image_url # <-- DODAJ TĘ LINIĘ (zapisujemy URL)
                     try:
-                        # --- OSTATECZNA POPRAWKA: Dodajemy nagłówek User-Agent ---
                         headers = {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                         }
                         image_response = requests.get(image_url, headers=headers, timeout=15)
-                        # ---------------------------------------------------------
-
+                        
                         if image_response.status_code == 200:
                             content_type = image_response.headers.get('content-type', '')
                             if 'image' in content_type:
@@ -98,7 +100,7 @@ with auto_tab:
             with st.spinner("Krok 5/5: AI pisze angażującego posta na Facebooka..."):
                 generated_post = create_facebook_post_from_article(chosen_article['title'], full_content, chosen_article['link'])
                 st.session_state.generated_post = generated_post
-                st.rerun() # Odświeżamy, aby pokazać wyniki
+                st.rerun()
 
     # Jeżeli post został wygenerowany, wyświetlamy go w edytowalnym polu
     if st.session_state.generated_post:
@@ -108,6 +110,8 @@ with auto_tab:
         if st.session_state.featured_image_bytes:
             st.subheader("Sugerowane zdjęcie (możesz je zmienić poniżej):")
             st.image(st.session_state.featured_image_bytes)
+            # --- NOWA LINIA WYŚWIETLAJĄCA KLIKALNY LINK ---
+            st.markdown(f"**Źródło obrazka:** [{st.session_state.featured_image_url}]({st.session_state.featured_image_url})")
         
         uploaded_image = st.file_uploader("Opcjonalnie: zmień lub dodaj zdjęcie do posta", type=['jpg', 'jpeg', 'png'])
 
@@ -151,4 +155,5 @@ with manual_tab:
                     post_id = result.get('id', 'Brak ID')
                     st.success(f"Post został opublikowany! ID posta: {post_id}")
                     st.balloons()
+
 
