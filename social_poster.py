@@ -14,7 +14,7 @@ if api_key:
 else:
     print("!!! KRYTYCZNY BŁĄD: Nie znaleziono klucza OPENAI_API_KEY. !!!")
 
-def get_latest_wp_posts(site_key, count=10):
+def get_latest_wp_posts(site_key, count=5):
     """Pobiera listę ostatnich artykułów z WP, włącznie z URL-em obrazka wyróżniającego."""
     site_config = SITES.get(site_key)
     if not site_config:
@@ -180,4 +180,5 @@ def post_to_facebook_page(site_key, message, image_bytes=None):
     else:
         print(f"Błąd publikacji na Facebooku: {response.text}")
         return {"error": response.json()}
+
 
