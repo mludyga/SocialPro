@@ -44,6 +44,45 @@ def get_latest_wp_posts(site_key, count=10):
         print(f"Błąd podczas pobierania postów z {site_key}: {e}")
         return []
 
+def find_pexels_images_list(query, count=6):
+    """
+    Wyszukuje w Pexels listę zdjęć i zwraca ich dane (ID, URL-e, autor).
+    """
+    pexels_api_key = COMMON_KEYS.get("PEXELS_API_KEY")
+    if not pexels_api_key:
+        print("LOG: Brak klucza PEXELS_API_KEY. Pomijam wyszukiwanie obrazka.")
+        return []
+
+    try:
+        # Ten import musi być tutaj, aby uniknąć błędów, gdy biblioteka nie jest zainstalowana
+        from pexels_api import API
+        api = API(pexels_api_key)
+        print(f"LOG: Wyszukiwanie {count} obrazków w Pexels dla zapytania: '{query}'")
+        
+        api.search(query, page=1, results_per_page=count)
+        photos = api.get_entries()
+
+        if photos:
+            results = [
+                {
+                    "id": photo.id,
+                    "photographer": photo.photographer,
+                    "preview_url": photo.medium,
+                    "original_url": photo.large,
+                    "description": photo.description
+                } 
+                for photo in photos
+            ]
+            print(f"LOG: Znaleziono {len(results)} obrazków w Pexels.")
+            return results
+        else:
+            print(f"LOG: Nie znaleziono żadnego obrazka w Pexels dla zapytania: '{query}'")
+            return []
+    except Exception as e:
+        print(f"!!! BŁĄD w funkcji find_pexels_images_list: {e} !!!")
+        return []
+
+
 def choose_article_for_socials(articles):
     """Używa AI do wyboru najlepszego artykułu na post w social mediach."""
     if not client:
@@ -141,3 +180,4 @@ def post_to_facebook_page(site_key, message, image_bytes=None):
     else:
         print(f"Błąd publikacji na Facebooku: {response.text}")
         return {"error": response.json()}
+
