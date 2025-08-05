@@ -82,6 +82,18 @@ SITES = {
             "page_id": "343411575533119",
             "page_access_token": os.getenv("FB_SUPERKREDYTY_TOKEN")
         }
+    },
+    "autocentrumgroup.pl": {
+        "friendly_name": "AutoCentrumGroup.pl",
+        "wp_api_url_base": "https://autocentrumgroup.pl/wp-json/wp/v2",
+        "wp_username": os.getenv("AUTOCENTRUMGROUP_USER"),
+        "wp_password": os.getenv("AUTOCENTRUMGROUP_PASS"),
+        "auth_method": "basic",
+        "facebook_page": {
+            "page_id": "249303965929791",
+            "page_access_token": os.getenv("FB_AUTOCENTRUM_TOKEN")
+        }
     }
 }
+
 
