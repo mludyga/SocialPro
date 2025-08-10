@@ -1,7 +1,7 @@
-# social_poster.py - WERSJA OSTATECZNA
+# social_poster.py - WERSJA Z POPRAWIONYM PUBLIKOWANIEM ZDJĘĆ
 import requests
 import openai
-import base64  # Ważny import dla logowania
+import base64
 from bs4 import BeautifulSoup
 from social_config import SITES, COMMON_KEYS
 
@@ -15,17 +15,14 @@ else:
     print("!!! KRYTYCZNY BŁĄD: Nie znaleziono klucza OPENAI_API_KEY. !!!")
 
 
-# --- NOWA FUNKCJA DO LOGOWANIA W WORDPRESS ---
+# --- Funkcja do logowania w WordPress ---
 def get_auth_header(site_config):
-    """Tworzy nagłówek autoryzacyjny dla WordPressa na podstawie metody w configu."""
     auth_method = site_config.get('auth_method', 'basic')
-    
     if auth_method == 'bearer':
         token = site_config.get("wp_bearer_token")
         if not token: return {}
         return {'Authorization': f"Bearer {token}"}
     
-    # Domyślnie używamy metody 'basic'
     username = site_config.get("wp_username")
     password = site_config.get("wp_password")
     if not username or not password: return {}
@@ -35,22 +32,16 @@ def get_auth_header(site_config):
     return {'Authorization': f"Basic {token}"}
 
 
-def get_latest_wp_posts(site_key, count=5):
-    """Pobiera listę ostatnich artykułów z WP, włącznie z autoryzacją."""
+def get_latest_wp_posts(site_key, count=10):
     site_config = SITES.get(site_key)
     if not site_config:
-        print(f"Błąd: Nie znaleziono konfiguracji dla klucza '{site_key}'")
         return []
-
     url = f"{site_config['wp_api_url_base']}/posts"
     params = {'per_page': count, 'orderby': 'date', 'order': 'desc', '_embed': ''}
-    
     try:
-        # POPRAWKA: Dodajemy nagłówki z danymi logowania
         headers = get_auth_header(site_config)
         response = requests.get(url, headers=headers, params=params, timeout=20)
         response.raise_for_status()
-        
         posts = response.json()
         results = []
         for post in posts:
@@ -60,10 +51,8 @@ def get_latest_wp_posts(site_key, count=5):
             except (KeyError, IndexError):
                 pass
             results.append({
-                "id": post["id"],
-                "title": post["title"]["rendered"],
-                "link": post["link"],
-                "featured_image_url": image_url
+                "id": post["id"], "title": post["title"]["rendered"], 
+                "link": post["link"], "featured_image_url": image_url
             })
         return results
     except requests.exceptions.RequestException as e:
@@ -71,17 +60,13 @@ def get_latest_wp_posts(site_key, count=5):
         return []
 
 def get_full_article_content(site_key, post_id):
-    """Pobiera pełną treść artykułu, włącznie z autoryzacją."""
     site_config = SITES.get(site_key)
     if not site_config: return ""
-    
     url = f"{site_config['wp_api_url_base']}/posts/{post_id}"
     try:
-        # POPRAWKA: Dodajemy nagłówki z danymi logowania
         headers = get_auth_header(site_config)
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
-        
         content_html = response.json()["content"]["rendered"]
         soup = BeautifulSoup(content_html, 'html.parser')
         return soup.get_text()
@@ -90,18 +75,13 @@ def get_full_article_content(site_key, post_id):
         return ""
 
 def find_pexels_images_list(query, count=6):
-    """Wyszukuje w Pexels listę zdjęć i zwraca ich dane."""
     pexels_api_key = COMMON_KEYS.get("PEXELS_API_KEY")
-    if not pexels_api_key:
-        print("LOG: Brak klucza PEXELS_API_KEY.")
-        return []
-
+    if not pexels_api_key: return []
     try:
         from pexels_api import API
         api = API(pexels_api_key)
         api.search(query, page=1, results_per_page=count)
         photos = api.get_entries()
-
         if photos:
             return [{"id": photo.id, "photographer": photo.photographer, "preview_url": photo.medium, "original_url": photo.large, "description": photo.description} for photo in photos]
         return []
@@ -110,13 +90,10 @@ def find_pexels_images_list(query, count=6):
         return []
 
 def choose_article_for_socials(articles):
-    """Używa AI do wyboru najlepszego artykułu na post."""
     if not client: return articles[0] if articles else None
     if not articles: return None
-
     titles_list = "\n".join([f"{i+1}. {article['title']}" for i, article in enumerate(articles)])
     prompt = f"Przeanalizuj listę tytułów i wybierz jeden z największym potencjałem na post na Facebooku...\n{titles_list}\nZwróć tylko numer."
-    
     try:
         response = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], temperature=0.5)
         choice = response.choices[0].message.content.strip()
@@ -127,29 +104,16 @@ def choose_article_for_socials(articles):
         return articles[0]
 
 def create_facebook_post_from_article(article_title, article_content, article_link):
-    """Generuje treść posta na Facebooka."""
     if not client: return "BŁĄD: Klient OpenAI nie jest skonfigurowany."
-        
-    prompt = f"""
-    Jesteś ekspertem od social media. Stwórz angażujący post na Facebooka na podstawie artykułu.
-    Tytuł: "{article_title}"
-    Treść (fragment): "{article_content[:3000]}"
-    Link: {article_link}
-    Zasady:
-    1. Zacznij od emoji.
-    2. Napisz 2-4 zdania streszczenia.
-    3. Zakończ pytaniem do czytelników.
-    4. Dodaj 3-5 hasztagów.
-    5. Na końcu dodaj link w formacie: "Więcej -> {article_link}"
-    Zwróć tylko treść posta.
-    """
+    prompt = f"Jesteś ekspertem od social media... Stwórz post... Tytuł: \"{article_title}\"... Link: {article_link}..."
     try:
         response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
         return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"!!! BŁĄD w funkcji create_facebook_post_from_article: {e} !!!")
-        return "Niestety, nie udało się wygenerować posta. Spróbuj ponownie."
+        return "Niestety, nie udało się wygenerować posta."
 
+# --- OSTATECZNA, POPRAWIONA FUNKCJA PUBLIKACJI ---
 def post_to_facebook_page(site_key, message, image_bytes=None):
     """Publikuje post na stronie na Facebooku."""
     fb_config = SITES.get(site_key, {}).get("facebook_page")
@@ -157,20 +121,46 @@ def post_to_facebook_page(site_key, message, image_bytes=None):
     
     page_id = fb_config['page_id']
     token = fb_config['page_access_token']
-    if not token: return {"error": "Brak tokenu dostępu do Facebooka w konfiguracji."}
+    if not token: return {"error": "Brak tokenu dostępu do Facebooka."}
     
-    if image_bytes:
-        url = f"https://graph.facebook.com/{page_id}/photos"
-        files = {'source': image_bytes}
-        params = {'caption': message, 'access_token': token}
-        response = requests.post(url, files=files, params=params, timeout=60)
-    else:
-        url = f"https://graph.facebook.com/{page_id}/feed"
-        params = {'message': message, 'access_token': token}
-        response = requests.post(url, params=params, timeout=30)
+    try:
+        if image_bytes:
+            # Krok 1: Wgraj zdjęcie jako nieopublikowane, aby uzyskać jego ID
+            upload_url = f"https://graph.facebook.com/{page_id}/photos"
+            files = {'source': image_bytes}
+            upload_params = {'access_token': token, 'published': 'false'}
+            
+            print("LOG: Krok 1/2 - Wysyłanie zdjęcia na serwer Facebooka...")
+            upload_response = requests.post(upload_url, files=files, params=upload_params, timeout=60)
+            upload_response.raise_for_status()
+            photo_id = upload_response.json().get('id')
+            
+            if not photo_id:
+                print(f"!!! BŁĄD: Nie udało się uzyskać ID wgranego zdjęcia. Odpowiedź: {upload_response.text}")
+                return {"error": "Nie udało się uzyskać ID wgranego zdjęcia."}
+
+            # Krok 2: Opublikuj post na osi czasu, dołączając wgrane zdjęcie za pomocą jego ID
+            post_url = f"https://graph.facebook.com/{page_id}/feed"
+            post_params = {
+                'access_token': token,
+                'message': message,
+                'attached_media[0]': f'{{"media_fbid": "{photo_id}"}}'
+            }
+            
+            print(f"LOG: Krok 2/2 - Publikowanie posta z dołączonym zdjęciem (ID: {photo_id})...")
+            response = requests.post(post_url, params=post_params, timeout=30)
+            response.raise_for_status()
+            
+        else:
+            # Publikacja postu z samym tekstem (bez zmian)
+            post_url = f"https://graph.facebook.com/{page_id}/feed"
+            post_params = {'message': message, 'access_token': token}
+            response = requests.post(post_url, params=post_params, timeout=30)
+            response.raise_for_status()
         
-    if response.status_code == 200:
         return response.json()
-    else:
-        print(f"Błąd publikacji na Facebooku: {response.text}")
-        return {"error": response.json()}
+
+    except requests.exceptions.RequestException as e:
+        error_text = e.response.text if e.response else str(e)
+        print(f"Błąd publikacji na Facebooku: {error_text}")
+        return {"error": e.response.json() if e.response else {"message": str(e)}}
