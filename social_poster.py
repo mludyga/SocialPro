@@ -4,6 +4,7 @@ import openai
 import base64
 from bs4 import BeautifulSoup
 from social_config import SITES, COMMON_KEYS
+import re
 
 # --- Prawidłowa inicjalizacja klienta OpenAI ---
 client = None
@@ -90,28 +91,144 @@ def find_pexels_images_list(query, count=6):
         return []
 
 def choose_article_for_socials(articles):
-    if not client: return articles[0] if articles else None
-    if not articles: return None
-    titles_list = "\n".join([f"{i+1}. {article['title']}" for i, article in enumerate(articles)])
-    prompt = f"Przeanalizuj listę tytułów i wybierz jeden z największym potencjałem na post na Facebooku...\n{titles_list}\nZwróć tylko numer."
+    if not articles:
+        return None
+    if not client:
+        return articles[0]
+
+    titles_list = "\n".join([f"{i+1}. {a['title']}" for i, a in enumerate(articles)])
+    prompt = (
+        "Wybierz numer JEDNEGO tytułu, który ma najwyższy potencjał na post na Facebooku.\n"
+        "Kryteria: wysoka ciekawość, konkretne korzyści dla czytelnika, jasna obietnica, potencjał na listę/punkty, niezbyt techniczny.\n"
+        "Zwróć tylko numer (cyfrę), nic więcej.\n\n" + titles_list
+    )
     try:
-        response = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], temperature=0.5)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            max_tokens=5
+        )
         choice = response.choices[0].message.content.strip()
-        chosen_index = int(choice) - 1
+        chosen_index = int(re.findall(r'\d+', choice)[0]) - 1
         return articles[chosen_index] if 0 <= chosen_index < len(articles) else articles[0]
     except Exception as e:
         print(f"Błąd w funkcji choose_article_for_socials: {e}")
         return articles[0]
 
-def create_facebook_post_from_article(article_title, article_content, article_link):
-    if not client: return "BŁĄD: Klient OpenAI nie jest skonfigurowany."
-    prompt = f"Jesteś ekspertem od social media... Stwórz post... Tytuł: \"{article_title}\"... Link: {article_link}..."
+def create_facebook_post_from_article(article_title, article_content, article_link, length="standard", max_hashtags=5):
+    """
+    Generuje gotowy post na Facebooka (PL), bez 'Tytuł:' i bez markdown linków.
+    length: 'short' (~400 zzs), 'standard' (~900 zzs), 'long' (~1400 zzs)
+    """
+    if not client:
+        return "BŁĄD: Klient OpenAI nie jest skonfigurowany."
+
+    # Ustal limity długości wg preferencji
+    limits = {"short": 400, "standard": 900, "long": 1400}
+    char_limit = limits.get(length, 900)
+
+    system_msg = (
+        "Piszesz post na Facebooka po polsku. Bez nagłówków typu 'Tytuł:' i bez linków w formacie Markdown."
+        " Używaj 1–3 emoji w kluczowych miejscach (nie na początku każdej linii)."
+    )
+
+    prompt = f"""
+Zadanie: Napisz JEDEN gotowy post na Facebooka o artykule.
+Zasady (KLUCZOWE):
+- Nie pisz słowa 'Tytuł:' ani nie cytuj tytułu w cudzysłowie.
+- NIE używaj formatu Markdown do linków. Pokaż link jako czysty URL.
+- Struktura:
+  • Hak otwierający (1–2 zdania, konkretnie dlaczego czytelnik ma kliknąć).
+  • 3–5 krótkich punktów (myślniki lub '•') z faktami/korzyściami.
+  • Zakończ wezwaniem do działania + czysty link na KOŃCU.
+- 3–5 hashtagów po polsku (krótkich; bez spacji). Nie duplikuj.
+- Zwięźle: maksymalnie ~{char_limit} znaków.
+- Ton: informacyjny, żywy, ale bez przesady w emoji/clickbaitu.
+
+Dane wejściowe:
+Tytuł artykułu: {article_title}
+Kluczowe informacje (zajawka):
+{(article_content or '')[:1200]}
+
+Link (użyj jako czysty URL): {article_link}
+
+Wynik: Zwróć wyłącznie treść posta gotową do wklejenia na Facebooka (bez dodatkowych komentarzy).
+"""
+
     try:
-        response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": prompt}])
-        return response.choices[0].message.content.strip()
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            temperature=0.6,
+            max_tokens=400,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        raw = response.choices[0].message.content.strip()
+        return sanitize_facebook_post(raw, article_link, max_hashtags=max_hashtags, char_limit=char_limit)
     except Exception as e:
         print(f"!!! BŁĄD w funkcji create_facebook_post_from_article: {e} !!!")
-        return "Niestety, nie udało się wygenerować posta."
+        # awaryjnie fallback – czysty, krótki szkielet
+        fallback = f"""Poznaj najważniejsze fakty i wskazówki 👇
+- Sprawdź szczegóły w artykule
+- Krótko i konkretnie
+- Link na końcu
+
+Czytaj więcej:
+{article_link}
+#Informacje #Polecamy"""
+        return fallback
+
+def sanitize_facebook_post(text, link, max_hashtags=5, char_limit=900):
+    # 1) Usuń linie zaczynające się od "Tytuł:" / "Tytul:"
+    text = re.sub(r'^\s*(Tytu[łl]):\s*.*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+
+    # 2) Zamień markdown linki [tekst](url) -> "tekst: url"
+    text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'\1: \2', text)
+
+    # 3) Jeśli nie ma żadnego URL-a, dołącz czysty link na końcu
+    if not re.search(r'https?://', text) and link:
+        text = text.rstrip() + f"\n{link}"
+
+    # 4) Ogranicz liczbę hashtagów do max_hashtags i usuń duplikaty (z zachowaniem kolejności)
+    hashtags = re.findall(r'(?:^|\s)(#[A-Za-z0-9_ĄąĆćĘęŁłŃńÓóŚśŹźŻż]+)', text)
+    seen = set()
+    pruned = []
+    for h in hashtags:
+        key = h.lower()
+        if key not in seen and len(pruned) < max_hashtags:
+            pruned.append(h)
+            seen.add(key)
+
+    # usuń wszystkie hashtagi z treści
+    text_no_hash = re.sub(r'(?:^|\s)#[A-Za-z0-9_ĄąĆćĘęŁłŃńÓóŚśŹźŻż]+', '', text)
+    text = text_no_hash.strip()
+
+    # 5) Przytnij nadmiar pustych linii
+    text = re.sub(r'\n{3,}', '\n\n', text).strip()
+
+    # 6) Dołącz pruned hashtagi na końcu (jeśli są)
+    if pruned:
+        text = text + "\n" + " ".join(pruned)
+
+    # 7) Twarde przycięcie długości (jeśli trzeba), nie urywa URL-i:
+    if len(text) > char_limit:
+        # Jeśli końcówka zawiera URL, nie obcinaj go – najpierw spróbuj skrócić środek
+        lines = text.splitlines()
+        # zachowaj ostatnią linię jeśli to link/hashtagi
+        tail = []
+        if lines and (re.search(r'https?://', lines[-1]) or lines[-1].strip().startswith('#')):
+            tail = [lines[-1]]
+            body = "\n".join(lines[:-1])
+        else:
+            body = text
+        # przytnij body
+        body = body[:max(0, char_limit - (len("\n".join(tail)) + 1))].rstrip()
+        text = (body + ("\n" + "\n".join(tail) if tail else "")).strip()
+
+    return text
 
 # --- OSTATECZNA, POPRAWIONA FUNKCJA PUBLIKACJI ---
 def post_to_facebook_page(site_key, message, image_bytes=None):
@@ -164,3 +281,4 @@ def post_to_facebook_page(site_key, message, image_bytes=None):
         error_text = e.response.text if e.response else str(e)
         print(f"Błąd publikacji na Facebooku: {error_text}")
         return {"error": e.response.json() if e.response else {"message": str(e)}}
+
